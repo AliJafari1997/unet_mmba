@@ -160,14 +160,14 @@ if __name__ == "__main__":
     seeding(42)
 
     """ Directories """
-    create_dir("/content/drive/MyDrive/unet_files")
+    create_dir("/content/drive/MyDrive/unet_mmba_files")
 
     """ Training logfile """
-    train_log_path = '/content/drive/MyDrive/unet_files/train_log.txt'
+    train_log_path = '/content/drive/MyDrive/unet_mmba_files/train_log.txt'
     if os.path.exists(train_log_path):
         print("Log file exists")
     else:
-        train_log = open('/content/drive/MyDrive/unet_files/train_log.txt', "w")
+        train_log = open('/content/drive/MyDrive/unet_mmba_files/train_log.txt', "w")
         train_log.write("\n")
         train_log.close()
 
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     num_epochs = 500
     lr = 1e-4
     early_stopping_patience = 50
-    checkpoint_path = "/content/drive/MyDrive/unet_files/checkpoint.pth"
+    checkpoint_path = "/content/drive/MyDrive/unet_mmba_files/checkpoint.pth"
     path = "/content/drive/MyDrive/clinic_dataset_splitted"
 
     data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
