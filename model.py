@@ -1,5 +1,60 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+class Squeeze_Excitation(nn.Module):
+    def __init__(self, channel, r=8):
+        super().__init__()
+
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.net = nn.Sequential(
+            nn.Linear(channel, channel // r, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // r, channel, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, inputs):
+        b, c, _, _ = inputs.shape
+        x = self.pool(inputs).view(b, c)
+        x = self.net(x).view(b, c, 1, 1)
+        x = inputs * x
+        return x
+
+
+class MMBA(nn.Module):
+    def __init__(self, in_c):
+        '''in_channels of encoder part'''
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_c*2, 1, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()
+        self.upsample = nn.Upsample(scale_factor=2)
+        self.conv_foreground = nn.Conv2d(in_c, in_c//2, kernel_size=3, padding=1)
+        self.conv_background = nn.Conv2d(in_c, in_c//2, kernel_size=3, padding=1)
+        self.conv_boundary = nn.Conv2d(in_c, in_c//2, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(3*(in_c//2), in_c, kernel_size=3, padding=1)
+        self.se = Squeeze_Excitation(in_c)
+
+    def forward(self, e, d):
+        # e.g. encoder = torch.randn(2, 16, 32, 32) , decoder = torch.randn(2, 32, 16, 16)
+        d = self.conv1(d)
+        d = self.sigmoid(d)
+        d = self.upsample(d)
+
+        foreground = d * e
+        background = e * (1-d)
+        boundary = e * (1 - (2 * torch.abs(d-0.5)))
+
+        foreground = self.conv_foreground(foreground)
+        background = self.conv_background(background)
+        boundary = self.conv_boundary(boundary)
+
+        out = torch.cat((foreground, background, boundary), dim=1)   # 3/2
+        out = self.conv3(out)
+        out = self.se(out)
+        out = e + out
+
+        return out
 
 """ Convolutional block:
     It follows a two 3x3 convolutional layer, each followed by a batch normalization and a relu activation.
@@ -55,8 +110,9 @@ class decoder_block(nn.Module):
 
         self.up = nn.ConvTranspose2d(in_c, out_c, kernel_size=2, stride=2, padding=0)
         self.conv = conv_block(out_c+out_c, out_c)
-
+        self.mmba = MMBA(out_c)
     def forward(self, inputs, skip):
+        skip = self.mmba(skip, inputs)
         x = self.up(inputs)
         x = torch.cat([x, skip], axis=1)
         x = self.conv(x)
