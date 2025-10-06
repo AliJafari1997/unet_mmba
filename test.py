@@ -8,7 +8,7 @@ import cv2
 from tqdm import tqdm
 import imageio
 import torch
-from model import build_resunetplusplus
+from model import build_model
 from utils import create_dir, seeding
 from utils import calculate_metrics
 from train import load_data
