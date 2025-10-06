@@ -56,9 +56,7 @@ class MMBA(nn.Module):
 
         return out
 
-""" Convolutional block:
-    It follows a two 3x3 convolutional layer, each followed by a batch normalization and a relu activation.
-"""
+
 class conv_block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
@@ -82,10 +80,6 @@ class conv_block(nn.Module):
 
         return x
 
-""" Encoder block:
-    It consists of an conv_block followed by a max pooling.
-    Here the number of filters doubles and the height and width half after every block.
-"""
 class encoder_block(nn.Module):
     def __init__(self, in_c, out_c):
         super().__init__()
@@ -105,19 +99,49 @@ class encoder_block(nn.Module):
     Here the number filters decreases by half and the height and width doubles.
 """
 class decoder_block(nn.Module):
-    def __init__(self, in_c, out_c):
+    def __init__(self, in_c, out_c, is_mmba=True):
         super().__init__()
-
+        self.is_mmba = is_mmba
         self.up = nn.ConvTranspose2d(in_c, out_c, kernel_size=2, stride=2, padding=0)
         self.conv = conv_block(out_c+out_c, out_c)
         self.mmba = MMBA(out_c)
     def forward(self, inputs, skip):
-        skip = self.mmba(skip, inputs)
+        if self.mmba:
+            skip = self.mmba(skip, inputs)
         x = self.up(inputs)
         x = torch.cat([x, skip], axis=1)
         x = self.conv(x)
 
         return x
+
+
+class deep_supervision(nn.Module):
+    def __init__(self, in_c1, in_c2, in_c3, in_c4):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_c1, 1, kernel_size=1)
+        self.upsample1 = nn.Upsample(scale_factor=8)
+        self.conv2 = nn.Conv2d(in_c2, 1, kernel_size=1)
+        self.upsample2 = nn.Upsample(scale_factor=4)
+        self.conv3 = nn.Conv2d(in_c3, 1, kernel_size=1)
+        self.upsample3 = nn.Upsample(scale_factor=2)
+        self.conv4 = nn.Conv2d(in_c4, 1, kernel_size=1)
+        self.conv5 = nn.Conv2d(4, 1, kernel_size=1)
+    
+    def forward(self, inp1, inp2, inp3, inp4):
+        out1 = self.conv1(inp1)
+        out1 = self.upsample1(out1)
+
+        out2 = self.conv2(inp2)
+        out2 = self.upsample2(out2)
+
+        out3 = self.conv3(inp3)
+        out3 = self.upsample3(out3)
+
+        out4 = self.conv4(inp4)
+
+        out = torch.cat([out1, out2, out3, out4], dim=1)
+        out = self.conv5(out)
+        return out
 
 
 class build_model(nn.Module):
@@ -134,13 +158,13 @@ class build_model(nn.Module):
         self.b = conv_block(512, 1024)
 
         """ Decoder """
-        self.d1 = decoder_block(1024, 512)
+        self.d1 = decoder_block(1024, 512, is_mmba=False)
         self.d2 = decoder_block(512, 256)
         self.d3 = decoder_block(256, 128)
         self.d4 = decoder_block(128, 64)
 
         """ Classifier """
-        self.outputs = nn.Conv2d(64, 1, kernel_size=1, padding=0)
+        self.deep_supervision = deep_supervision(512, 256, 128, 64)
 
     def forward(self, inputs):
         """ Encoder """
@@ -159,6 +183,6 @@ class build_model(nn.Module):
         d4 = self.d4(d3, s1)
 
         """ Classifier """
-        outputs = self.outputs(d4)
+        outputs = self.deep_supervision(d1, d2, d3, d4)
 
         return outputs
