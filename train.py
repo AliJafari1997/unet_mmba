@@ -87,7 +87,7 @@ def train(model, loader, optimizer, loss_fn, device):
         batch_f1 = []
         batch_recall = []
         batch_precision = []
-
+        y_pred = torch.sigmoid(y_pred)
         for yt, yp in zip(y, y_pred):
             score = calculate_metrics(yt, yp)
             batch_jac.append(score[0])
