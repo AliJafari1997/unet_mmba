@@ -109,7 +109,7 @@ if __name__ == "__main__":
     path = "/content/drive/MyDrive/clinic_dataset_splitted"
     (train_x, train_y), (valid_x, valid_y), (test_x, test_y) = load_data(path)
 
-    save_path = f"results/"
+    save_path = f"/content/drive/MyDrive/unet_mmba_deep1_files/results/"
     for item in ["mask", "joint"]:
         create_dir(f"{save_path}/{item}")
 
